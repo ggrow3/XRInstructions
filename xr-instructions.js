@@ -10,6 +10,29 @@ class XRInstructionsApp {
         this.currentStep = 0;
         this.completedSteps = new Set(); // Track completed steps
         
+        // Hand tracking properties
+        this.hands = {
+            left: { 
+                inputSource: null, 
+                mesh: null, 
+                joints: {},
+                pinching: false,
+                lastPinchTime: 0
+            },
+            right: { 
+                inputSource: null, 
+                mesh: null, 
+                joints: {},
+                pinching: false,
+                lastPinchTime: 0
+            }
+        };
+        this.handModels = new Map();
+        this.interactableObjects = [];
+        this.grabbedObject = null;
+        this.grabOffset = new THREE.Vector3();
+        this.handRays = { left: null, right: null };
+        
         // Sample work instructions
         this.instructions = [
             {
@@ -126,10 +149,10 @@ class XRInstructionsApp {
     
     async startXRSession() {
         try {
-            // Request AR session with dom-overlay for better UI
+            // Request AR session with dom-overlay and hand tracking
             const sessionInit = {
                 requiredFeatures: ['local-floor'],
-                optionalFeatures: ['dom-overlay'],
+                optionalFeatures: ['dom-overlay', 'hand-tracking'],
                 domOverlay: { root: document.getElementById('app-container') }
             };
             
@@ -148,6 +171,9 @@ class XRInstructionsApp {
             // Create 3D instruction panel
             this.create3DInstructions();
             
+            // Initialize hand tracking if available
+            this.initializeHandTracking();
+            
             // Start render loop
             this.renderer.setAnimationLoop((time, frame) => {
                 this.render(time, frame);
@@ -165,6 +191,9 @@ class XRInstructionsApp {
                     this.scene.remove(this.instructionMesh);
                     this.instructionMesh = null;
                 }
+                
+                // Clean up hand tracking
+                this.cleanupHandTracking();
             });
             
         } catch (error) {
@@ -267,7 +296,11 @@ class XRInstructionsApp {
     create3DButtons() {
         // Previous button
         const prevGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.05);
-        const prevMaterial = new THREE.MeshBasicMaterial({ color: 0x444444 });
+        const prevMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x444444,
+            emissive: 0x000000,
+            emissiveIntensity: 0.5
+        });
         const prevButton = new THREE.Mesh(prevGeometry, prevMaterial);
         prevButton.position.set(-0.4, 1.1, -2);
         prevButton.name = 'prev-button';
@@ -275,7 +308,11 @@ class XRInstructionsApp {
         
         // Next button
         const nextGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.05);
-        const nextMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const nextMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x00ff00,
+            emissive: 0x000000,
+            emissiveIntensity: 0.5
+        });
         const nextButton = new THREE.Mesh(nextGeometry, nextMaterial);
         nextButton.position.set(0.4, 1.1, -2);
         nextButton.name = 'next-button';
@@ -299,11 +336,18 @@ class XRInstructionsApp {
                 // Handle input sources for interaction
                 const inputSources = frame.session.inputSources;
                 inputSources.forEach(inputSource => {
-                    if (inputSource.gamepad && inputSource.gamepad.buttons[0].pressed) {
-                        // Simple interaction - could be improved with raycasting
+                    // Handle hand tracking
+                    if (inputSource.hand) {
+                        this.updateHandTracking(inputSource, frame);
+                    }
+                    // Handle controller input
+                    else if (inputSource.gamepad && inputSource.gamepad.buttons[0].pressed) {
                         this.handleXRInput(inputSource, frame);
                     }
                 });
+                
+                // Update hand interactions
+                this.updateHandInteractions();
             }
         }
         
@@ -493,6 +537,287 @@ class XRInstructionsApp {
     
     updateStatus(message) {
         document.getElementById('status').textContent = message;
+    }
+    
+    // Hand tracking methods
+    initializeHandTracking() {
+        // Make instruction panel and buttons interactable
+        if (this.instructionMesh) {
+            this.interactableObjects.push(this.instructionMesh);
+        }
+        
+        // Add buttons to interactable objects
+        this.scene.traverse((child) => {
+            if (child.name === 'prev-button' || child.name === 'next-button') {
+                this.interactableObjects.push(child);
+            }
+        });
+        
+        // Create hand rays for pointing
+        const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, -2)
+        ]);
+        const rayMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x00ff00, 
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.5
+        });
+        
+        this.handRays.left = new THREE.Line(rayGeometry, rayMaterial);
+        this.handRays.right = new THREE.Line(rayGeometry, rayMaterial);
+        this.handRays.left.visible = false;
+        this.handRays.right.visible = false;
+        
+        this.scene.add(this.handRays.left);
+        this.scene.add(this.handRays.right);
+    }
+    
+    updateHandTracking(inputSource, frame) {
+        const handedness = inputSource.handedness;
+        if (handedness !== 'left' && handedness !== 'right') return;
+        
+        const hand = this.hands[handedness];
+        hand.inputSource = inputSource;
+        
+        // Create hand visualization if not exists
+        if (!hand.mesh) {
+            this.createHandMesh(handedness);
+        }
+        
+        // Update joint positions
+        if (inputSource.hand) {
+            for (const jointSpace of inputSource.hand.values()) {
+                const jointPose = frame.getJointPose(jointSpace, this.referenceSpace);
+                if (jointPose) {
+                    const jointName = jointSpace.jointName;
+                    if (!hand.joints[jointName]) {
+                        // Create joint sphere
+                        const jointGeometry = new THREE.SphereGeometry(0.008);
+                        const jointMaterial = new THREE.MeshBasicMaterial({ 
+                            color: handedness === 'left' ? 0xff0000 : 0x0000ff 
+                        });
+                        hand.joints[jointName] = new THREE.Mesh(jointGeometry, jointMaterial);
+                        this.scene.add(hand.joints[jointName]);
+                    }
+                    
+                    // Update joint position
+                    const position = jointPose.transform.position;
+                    hand.joints[jointName].position.set(position.x, position.y, position.z);
+                    hand.joints[jointName].visible = true;
+                }
+            }
+            
+            // Check for pinch gesture
+            this.detectPinchGesture(handedness, frame);
+        }
+    }
+    
+    createHandMesh(handedness) {
+        const hand = this.hands[handedness];
+        
+        // Create a simple hand visualization with lines connecting joints
+        const material = new THREE.LineBasicMaterial({ 
+            color: handedness === 'left' ? 0xff0000 : 0x0000ff,
+            linewidth: 2
+        });
+        
+        hand.mesh = new THREE.Group();
+        this.scene.add(hand.mesh);
+    }
+    
+    detectPinchGesture(handedness, frame) {
+        const hand = this.hands[handedness];
+        const inputSource = hand.inputSource;
+        
+        if (!inputSource.hand) return;
+        
+        // Get thumb tip and index finger tip positions
+        let thumbTip = null;
+        let indexTip = null;
+        
+        for (const [jointSpace, joint] of inputSource.hand) {
+            const jointPose = frame.getJointPose(jointSpace, this.referenceSpace);
+            if (jointPose) {
+                if (jointSpace.jointName === 'thumb-tip') {
+                    thumbTip = new THREE.Vector3(
+                        jointPose.transform.position.x,
+                        jointPose.transform.position.y,
+                        jointPose.transform.position.z
+                    );
+                } else if (jointSpace.jointName === 'index-finger-tip') {
+                    indexTip = new THREE.Vector3(
+                        jointPose.transform.position.x,
+                        jointPose.transform.position.y,
+                        jointPose.transform.position.z
+                    );
+                }
+            }
+        }
+        
+        // Calculate pinch distance
+        if (thumbTip && indexTip) {
+            const pinchDistance = thumbTip.distanceTo(indexTip);
+            const isPinching = pinchDistance < 0.02; // 2cm threshold
+            
+            // Handle pinch state changes
+            if (isPinching && !hand.pinching) {
+                hand.pinching = true;
+                hand.lastPinchTime = Date.now();
+                this.handlePinchStart(handedness, indexTip);
+            } else if (!isPinching && hand.pinching) {
+                hand.pinching = false;
+                this.handlePinchEnd(handedness);
+            } else if (isPinching && hand.pinching) {
+                this.handlePinchMove(handedness, indexTip);
+            }
+            
+            // Update ray visibility
+            if (this.handRays[handedness]) {
+                this.handRays[handedness].visible = isPinching || this.grabbedObject !== null;
+                if (this.handRays[handedness].visible) {
+                    this.updateHandRay(handedness, indexTip);
+                }
+            }
+        }
+    }
+    
+    updateHandRay(handedness, origin) {
+        const ray = this.handRays[handedness];
+        if (!ray) return;
+        
+        // Position ray at hand position
+        ray.position.copy(origin);
+        
+        // Point ray forward from hand
+        const direction = new THREE.Vector3(0, 0, -1);
+        ray.lookAt(origin.clone().add(direction));
+    }
+    
+    handlePinchStart(handedness, position) {
+        // Cast ray from hand position
+        const raycaster = new THREE.Raycaster();
+        const direction = new THREE.Vector3(0, 0, -1);
+        raycaster.set(position, direction);
+        
+        // Check for intersections with interactable objects
+        const intersects = raycaster.intersectObjects(this.interactableObjects);
+        
+        if (intersects.length > 0) {
+            const intersected = intersects[0].object;
+            
+            // Check if it's a button
+            if (intersected.name === 'prev-button' || intersected.name === 'next-button') {
+                this.handleButtonPress(intersected.name);
+            } 
+            // Check if it's the instruction panel
+            else if (intersected === this.instructionMesh) {
+                this.grabbedObject = intersected;
+                this.grabOffset = intersected.position.clone().sub(position);
+            }
+        }
+    }
+    
+    handlePinchMove(handedness, position) {
+        if (this.grabbedObject) {
+            // Move the grabbed object with the hand
+            this.grabbedObject.position.copy(position.clone().add(this.grabOffset));
+        }
+    }
+    
+    handlePinchEnd(handedness) {
+        this.grabbedObject = null;
+    }
+    
+    handleButtonPress(buttonName) {
+        if (buttonName === 'prev-button' && this.currentStep > 0) {
+            this.currentStep--;
+            this.updateInstruction();
+            this.animateButton(buttonName);
+        } else if (buttonName === 'next-button' && this.currentStep < this.instructions.length - 1) {
+            this.currentStep++;
+            this.updateInstruction();
+            this.animateButton(buttonName);
+        }
+    }
+    
+    animateButton(buttonName) {
+        const button = this.scene.getObjectByName(buttonName);
+        if (button) {
+            // Simple scale animation
+            const originalScale = button.scale.clone();
+            button.scale.multiplyScalar(0.9);
+            setTimeout(() => {
+                button.scale.copy(originalScale);
+            }, 100);
+        }
+    }
+    
+    updateHandInteractions() {
+        // Update visual feedback for interactable objects
+        this.interactableObjects.forEach(object => {
+            if (object.material) {
+                // Reset emissive color
+                if (object.material.emissive) {
+                    object.material.emissive = new THREE.Color(0x000000);
+                }
+            }
+        });
+        
+        // Highlight objects being pointed at
+        ['left', 'right'].forEach(handedness => {
+            const hand = this.hands[handedness];
+            if (hand.pinching && this.handRays[handedness].visible) {
+                const raycaster = new THREE.Raycaster();
+                const origin = this.handRays[handedness].position;
+                const direction = new THREE.Vector3(0, 0, -1);
+                raycaster.set(origin, direction);
+                
+                const intersects = raycaster.intersectObjects(this.interactableObjects);
+                if (intersects.length > 0 && intersects[0].object.material) {
+                    // Add glow effect to hovered object
+                    if (intersects[0].object.material.emissive) {
+                        intersects[0].object.material.emissive = new THREE.Color(0x444444);
+                    }
+                }
+            }
+        });
+    }
+    
+    cleanupHandTracking() {
+        // Remove hand joints and meshes
+        ['left', 'right'].forEach(handedness => {
+            const hand = this.hands[handedness];
+            
+            // Remove joints
+            Object.values(hand.joints).forEach(joint => {
+                if (joint) {
+                    this.scene.remove(joint);
+                }
+            });
+            hand.joints = {};
+            
+            // Remove hand mesh
+            if (hand.mesh) {
+                this.scene.remove(hand.mesh);
+                hand.mesh = null;
+            }
+            
+            // Remove hand ray
+            if (this.handRays[handedness]) {
+                this.scene.remove(this.handRays[handedness]);
+                this.handRays[handedness] = null;
+            }
+            
+            // Reset hand state
+            hand.inputSource = null;
+            hand.pinching = false;
+        });
+        
+        // Clear interactable objects
+        this.interactableObjects = [];
+        this.grabbedObject = null;
     }
 }
 
