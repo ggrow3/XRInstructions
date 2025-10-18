@@ -1,0 +1,205 @@
+/* XR Work Instructions Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #0a0a0a;
+    color: #ffffff;
+    overflow: hidden;
+    height: 100vh;
+}
+
+#app-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    background-color: #1a1a1a;
+    padding: 1rem 2rem;
+    border-bottom: 2px solid #333;
+}
+
+header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #00ff00;
+}
+
+#status {
+    font-size: 0.875rem;
+    color: #888;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+    z-index: 10;
+}
+
+#instructions-2d {
+    background-color: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 600px;
+    width: 100%;
+    margin-bottom: 2rem;
+}
+
+#instructions-2d h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    color: #00ff00;
+}
+
+#instruction-display {
+    background-color: #0a0a0a;
+    padding: 1.5rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+    min-height: 120px;
+}
+
+#instruction-title {
+    font-size: 1.125rem;
+    margin-bottom: 0.75rem;
+    color: #ffffff;
+}
+
+#instruction-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #cccccc;
+}
+
+#controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+button {
+    background-color: #00ff00;
+    color: #000000;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+button:hover:not(:disabled) {
+    background-color: #00cc00;
+    transform: translateY(-2px);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+button:disabled {
+    background-color: #444;
+    color: #888;
+    cursor: not-allowed;
+}
+
+#xr-button {
+    background-color: #0080ff;
+    color: #ffffff;
+    font-size: 1.125rem;
+    padding: 1rem 2rem;
+}
+
+#xr-button:hover:not(:disabled) {
+    background-color: #0066cc;
+}
+
+#step-indicator {
+    font-size: 0.875rem;
+    color: #888;
+}
+
+#xr-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* XR DOM Overlay styles */
+.xr-overlay-visible #app-container {
+    background-color: transparent;
+}
+
+.xr-overlay-visible main {
+    background-color: rgba(0, 0, 0, 0.8);
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+}
+
+.xr-overlay-visible header {
+    background-color: rgba(26, 26, 26, 0.9);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    header {
+        padding: 1rem;
+    }
+    
+    header h1 {
+        font-size: 1.25rem;
+    }
+    
+    main {
+        padding: 1rem;
+    }
+    
+    #instructions-2d {
+        padding: 1.5rem;
+    }
+    
+    #controls {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    button {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+}
+
+/* Animation for XR entry */
+@keyframes xrEntry {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.xr-session-active {
+    animation: xrEntry 0.3s ease-out;
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XR Work Instructions</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/FontLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/geometries/TextGeometry.js"></script>
+</head>
+<body>
+    <div id="app-container">
+        <header>
+            <h1>XR Work Instructions</h1>
+            <p id="status">WebXR not initialized</p>
+        </header>
+        
+        <main id="content">
+            <div id="instructions-2d">
+                <h2>Current Instruction</h2>
+                <div id="instruction-display">
+                    <h3 id="instruction-title">Loading...</h3>
+                    <p id="instruction-text">Preparing work instructions...</p>
+                </div>
+                <div id="controls">
+                    <button id="prev-btn" disabled>Previous</button>
+                    <span id="step-indicator">Step 1 of 1</span>
+                    <button id="next-btn">Next</button>
+                </div>
+            </div>
+            
+            <button id="xr-button" disabled>Enter XR</button>
+        </main>
+        
+        <canvas id="xr-canvas"></canvas>
+    </div>
+    
+    <script src="xr-instructions.js"></script>
+</body>
+</html>
