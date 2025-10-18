@@ -8,6 +8,7 @@ class XRInstructionsApp {
         this.referenceSpace = null;
         this.instructionMesh = null;
         this.currentStep = 0;
+        this.completedSteps = new Set(); // Track completed steps
         
         // Sample work instructions
         this.instructions = [
@@ -41,6 +42,14 @@ class XRInstructionsApp {
     }
     
     init() {
+        // Initialize drag functionality
+        this.initDragFunctionality();
+        
+        // Initialize checklist
+        this.initChecklist();
+        
+        // Load saved state
+        this.loadChecklistState();
         // Check WebXR support
         if (navigator.xr) {
             navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
@@ -235,6 +244,17 @@ class XRInstructionsApp {
         ctx.fillStyle = '#00ff00';
         ctx.fillText(`Step ${this.currentStep + 1} of ${this.instructions.length}`, 20, canvas.height - 20);
         
+        // Completion indicator
+        if (this.completedSteps.has(this.currentStep)) {
+            ctx.fillStyle = '#00ff00';
+            ctx.font = 'bold 20px Arial';
+            ctx.fillText('✓ Completed', canvas.width - 150, 40);
+        } else {
+            ctx.fillStyle = '#888888';
+            ctx.font = '16px Arial';
+            ctx.fillText('☐ Not completed', canvas.width - 150, 40);
+        }
+        
         // Create texture
         const texture = new THREE.CanvasTexture(canvas);
         texture.needsUpdate = true;
@@ -325,9 +345,149 @@ class XRInstructionsApp {
         document.getElementById('prev-btn').disabled = this.currentStep === 0;
         document.getElementById('next-btn').disabled = this.currentStep === this.instructions.length - 1;
         
+        // Update checkbox state for current step
+        const checkbox = document.getElementById('current-step-checkbox');
+        checkbox.checked = this.completedSteps.has(this.currentStep);
+        
         // Update 3D instruction if in XR
         if (this.instructionMesh) {
             this.updateInstructionTexture();
+        }
+    }
+    
+    initDragFunctionality() {
+        const draggableElement = document.getElementById('instructions-2d');
+        const dragHandle = draggableElement.querySelector('.drag-handle');
+        
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+        
+        // Set initial position (centered)
+        const rect = draggableElement.getBoundingClientRect();
+        const parentRect = draggableElement.parentElement.getBoundingClientRect();
+        xOffset = (parentRect.width - rect.width) / 2;
+        yOffset = 100; // Start 100px from top
+        draggableElement.style.transform = `translate(${xOffset}px, ${yOffset}px)`;
+        
+        function dragStart(e) {
+            if (e.type === "touchstart") {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+            
+            if (e.target === dragHandle || dragHandle.contains(e.target)) {
+                isDragging = true;
+            }
+        }
+        
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+        
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === "touchmove") {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+                
+                xOffset = currentX;
+                yOffset = currentY;
+                
+                // Keep element within viewport bounds
+                const rect = draggableElement.getBoundingClientRect();
+                const maxX = window.innerWidth - rect.width;
+                const maxY = window.innerHeight - rect.height;
+                
+                xOffset = Math.max(0, Math.min(xOffset, maxX));
+                yOffset = Math.max(0, Math.min(yOffset, maxY));
+                
+                draggableElement.style.transform = `translate(${xOffset}px, ${yOffset}px)`;
+            }
+        }
+        
+        // Mouse events
+        dragHandle.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', dragEnd);
+        
+        // Touch events
+        dragHandle.addEventListener('touchstart', dragStart);
+        document.addEventListener('touchmove', drag, { passive: false });
+        document.addEventListener('touchend', dragEnd);
+    }
+    
+    initChecklist() {
+        // Initialize checklist summary
+        this.updateChecklistSummary();
+        
+        // Add event listener for current step checkbox
+        const checkbox = document.getElementById('current-step-checkbox');
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                this.completedSteps.add(this.currentStep);
+            } else {
+                this.completedSteps.delete(this.currentStep);
+            }
+            this.updateChecklistSummary();
+            this.saveChecklistState();
+        });
+    }
+    
+    updateChecklistSummary() {
+        const checklistItems = document.getElementById('checklist-items');
+        checklistItems.innerHTML = '';
+        
+        this.instructions.forEach((instruction, index) => {
+            const item = document.createElement('div');
+            item.className = 'checklist-summary-item';
+            if (this.completedSteps.has(index)) {
+                item.classList.add('completed');
+            }
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = this.completedSteps.has(index);
+            checkbox.disabled = true;
+            
+            const label = document.createElement('span');
+            label.textContent = instruction.title;
+            
+            item.appendChild(checkbox);
+            item.appendChild(label);
+            checklistItems.appendChild(item);
+        });
+    }
+    
+    saveChecklistState() {
+        localStorage.setItem('xr-instructions-completed', JSON.stringify([...this.completedSteps]));
+    }
+    
+    loadChecklistState() {
+        const saved = localStorage.getItem('xr-instructions-completed');
+        if (saved) {
+            try {
+                const completed = JSON.parse(saved);
+                this.completedSteps = new Set(completed);
+                this.updateChecklistSummary();
+            } catch (e) {
+                console.error('Failed to load saved checklist state:', e);
+            }
         }
     }
     

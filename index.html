@@ -17,16 +17,27 @@
         </header>
         
         <main id="content">
-            <div id="instructions-2d">
-                <h2>Current Instruction</h2>
+            <div id="instructions-2d" class="draggable">
+                <div class="drag-handle">
+                    <h2>Current Instruction</h2>
+                    <span class="drag-icon">⋮⋮</span>
+                </div>
                 <div id="instruction-display">
                     <h3 id="instruction-title">Loading...</h3>
                     <p id="instruction-text">Preparing work instructions...</p>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="current-step-checkbox">
+                        <label for="current-step-checkbox">Mark as completed</label>
+                    </div>
                 </div>
                 <div id="controls">
                     <button id="prev-btn" disabled>Previous</button>
                     <span id="step-indicator">Step 1 of 1</span>
                     <button id="next-btn">Next</button>
+                </div>
+                <div id="checklist-summary">
+                    <h3>Progress Checklist</h3>
+                    <div id="checklist-items"></div>
                 </div>
             </div>
             

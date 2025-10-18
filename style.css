@@ -47,6 +47,7 @@ main {
     padding: 2rem;
     position: relative;
     z-index: 10;
+    overflow: hidden;
 }
 
 #instructions-2d {
@@ -57,6 +58,87 @@ main {
     max-width: 600px;
     width: 100%;
     margin-bottom: 2rem;
+    position: relative;
+}
+
+.draggable {
+    position: absolute !important;
+    cursor: move;
+}
+
+.drag-handle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    cursor: move;
+}
+
+.drag-icon {
+    font-size: 1.5rem;
+    color: #666;
+    cursor: move;
+    user-select: none;
+}
+
+.checklist-item {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background-color: #1a1a1a;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.checklist-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #00ff00;
+}
+
+.checklist-item label {
+    cursor: pointer;
+    user-select: none;
+}
+
+#checklist-summary {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #333;
+}
+
+#checklist-summary h3 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: #00ff00;
+}
+
+#checklist-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.checklist-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: #888;
+}
+
+.checklist-summary-item.completed {
+    color: #00ff00;
+    text-decoration: line-through;
+}
+
+.checklist-summary-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #00ff00;
+    pointer-events: none;
 }
 
 #instructions-2d h2 {
